@@ -9,6 +9,8 @@ import android.widget.Toast;
 
 import java.util.concurrent.Callable;
 
+import rx.android.view.ViewObservable;
+
 
 public class MainActivity extends ActionBarActivity {
 
@@ -17,8 +19,14 @@ public class MainActivity extends ActionBarActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Button button = (Button) findViewById(R.id.button);
+        // retrolambda (with type: functional interface)
         button.setOnClickListener(v -> {
             Toast.makeText(this, "Hello Retrolambda", Toast.LENGTH_SHORT).show();
+        });
+
+        // rxandroid - ViewObservable
+        ViewObservable.clicks(button).subscribe(v -> {
+            Toast.makeText(this, "Hello RxAndroid", Toast.LENGTH_SHORT).show();
         });
     }
 
