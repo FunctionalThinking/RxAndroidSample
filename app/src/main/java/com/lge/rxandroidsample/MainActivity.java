@@ -1,15 +1,28 @@
 package com.lge.rxandroidsample;
 
-import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
+import android.support.v7.app.ActionBarActivity;
+import android.util.Log;
+import android.util.Pair;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
+import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
-import java.util.concurrent.Callable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 
+import rx.Observable;
+import rx.Subscription;
+import rx.android.AndroidSubscriptions;
+import rx.android.internal.Assertions;
+import rx.android.view.OnClickEvent;
 import rx.android.view.ViewObservable;
+import rx.functions.Action0;
 
 
 public class MainActivity extends ActionBarActivity {
@@ -28,8 +41,23 @@ public class MainActivity extends ActionBarActivity {
         ViewObservable.clicks(button).subscribe(v -> {
             Toast.makeText(this, "Hello RxAndroid", Toast.LENGTH_SHORT).show();
         });
-    }
 
+        // Event stream with drag & drop
+        Observable<MotionEvent> touches = touches(button);
+
+        Observable<MotionEvent> downs = touches.filter(e -> e.getAction() == MotionEvent.ACTION_DOWN);
+        Observable<MotionEvent> ups = touches.filter(e -> e.getAction() == MotionEvent.ACTION_UP);
+        Observable<MotionEvent> moves = touches.filter(e -> e.getAction() == MotionEvent.ACTION_MOVE);
+
+        downs.flatMap(d -> {
+            float x = button.getX() - d.getRawX();
+            float y = button.getY() - d.getRawY();
+            return moves.map(m -> Pair.create(x + m.getRawX(), y + m.getRawY())).takeUntil(ups);
+        }).subscribe(pos -> {
+            button.setX(pos.first);
+            button.setY(pos.second);
+        });
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -51,5 +79,62 @@ public class MainActivity extends ActionBarActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private static Observable<MotionEvent> touches(View view) {
+        return Observable.<MotionEvent>create(observer -> {
+            Assertions.assertUiThread();
+            final CompositeOnTouchListener composite = CachedListeners.getFromViewOrCreate(view);
+
+            final View.OnTouchListener listener = (view1, event) -> {
+                observer.onNext(event);
+                return false;
+            };
+
+            final Subscription subscription = AndroidSubscriptions.unsubscribeInUiThread(() -> composite.removeOnTouchListener(listener));
+
+            composite.addOnTouchListener(listener);
+            observer.add(subscription);
+        });
+    }
+
+    private static class CompositeOnTouchListener implements View.OnTouchListener {
+        private final List<View.OnTouchListener> listeners = new ArrayList<View.OnTouchListener>();
+
+        public boolean addOnTouchListener(final View.OnTouchListener listener) {
+            return listeners.add(listener);
+        }
+
+        public boolean removeOnTouchListener(final View.OnTouchListener listener) {
+            return listeners.remove(listener);
+        }
+
+        @Override
+        public boolean onTouch(final View view, MotionEvent event) {
+            List<View.OnTouchListener> copy = new ArrayList<>(listeners);
+            for (final View.OnTouchListener listener : copy) {
+                listener.onTouch(view, event);
+            }
+            return false;
+        }
+    }
+
+    private static class CachedListeners {
+        private static final Map<View, CompositeOnTouchListener> sCachedListeners = new WeakHashMap<View, CompositeOnTouchListener>();
+
+        public static CompositeOnTouchListener getFromViewOrCreate(final View view) {
+            final CompositeOnTouchListener cached = sCachedListeners.get(view);
+
+            if (cached != null) {
+                return cached;
+            }
+
+            final CompositeOnTouchListener listener = new CompositeOnTouchListener();
+
+            sCachedListeners.put(view, listener);
+            view.setOnTouchListener(listener);
+
+            return listener;
+        }
     }
 }
