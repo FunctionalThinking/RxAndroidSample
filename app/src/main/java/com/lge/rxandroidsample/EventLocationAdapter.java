@@ -1,6 +1,7 @@
 package com.lge.rxandroidsample;
 
 import android.content.Context;
+import android.os.AsyncTask;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -9,6 +10,7 @@ import android.widget.Filterable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Created by soohyun.baik on 2015-04-15.
@@ -34,15 +36,30 @@ public class EventLocationAdapter extends ArrayAdapter<String> implements Filter
 
         @Override
         protected FilterResults performFiltering(CharSequence constraint) {
+            if (constraint == null) return new FilterResults();
             String filter = constraint.toString();
-            List<String> recentLocations = queryRecentLocations(filter);
+
+
+            AsyncTask<Void, Void, List<String>> task = new AsyncTask<Void, Void, List<String>>() {
+                @Override
+                protected List<String> doInBackground(Void[] params) {
+                    return queryRecentLocations(filter);
+                }
+            }.execute();
+
             List<String> contacts = queryContacts(filter);
 
             List<String> values = new ArrayList<>();
 
-            for (String recentLocation: recentLocations) {
-                if (!contacts.contains(recentLocation))
-                    values.add(recentLocation);
+            try {
+                for (String recentLocation: task.get()) {
+                    if (!contacts.contains(recentLocation))
+                        values.add(recentLocation);
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
             }
             values.addAll(contacts);
 
@@ -55,7 +72,7 @@ public class EventLocationAdapter extends ArrayAdapter<String> implements Filter
         private List<String> queryRecentLocations(String filter) {
             List<String> results = new ArrayList<>();
             for (int i=1; i<7; i++) {
-                results.add(filter + i);
+                results.add(filter + Thread.currentThread().getName() + i);
             }
             return results;
         }
