@@ -34,15 +34,40 @@ public class EventLocationAdapter extends ArrayAdapter<String> implements Filter
 
         @Override
         protected FilterResults performFiltering(CharSequence constraint) {
+            String filter = constraint.toString();
+            List<String> recentLocations = queryRecentLocations(filter);
+            List<String> contacts = queryContacts(filter);
+
             List<String> values = new ArrayList<>();
-            for (int i=0; i<10; i++) {
-                values.add(constraint.toString() + i);
+
+            for (String recentLocation: recentLocations) {
+                if (!contacts.contains(recentLocation))
+                    values.add(recentLocation);
             }
+            values.addAll(contacts);
+
             FilterResults results = new FilterResults();
             results.values = values;
             results.count = values.size();
             return results;
         }
+
+        private List<String> queryRecentLocations(String filter) {
+            List<String> results = new ArrayList<>();
+            for (int i=1; i<7; i++) {
+                results.add(filter + i);
+            }
+            return results;
+        }
+
+        private List<String> queryContacts(String filter) {
+            List<String> results = new ArrayList<>();
+            for (int i=5; i<10; i++) {
+                results.add(filter + i);
+            }
+            return results;
+        }
+
 
         @Override
         protected void publishResults(CharSequence constraint, FilterResults results) {
