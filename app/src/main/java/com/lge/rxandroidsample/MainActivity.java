@@ -2,7 +2,6 @@ package com.lge.rxandroidsample;
 
 import android.os.Bundle;
 import android.support.v7.app.ActionBarActivity;
-import android.util.Log;
 import android.util.Pair;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -15,14 +14,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.TimeUnit;
 
 import rx.Observable;
 import rx.Subscription;
 import rx.android.AndroidSubscriptions;
 import rx.android.internal.Assertions;
-import rx.android.view.OnClickEvent;
+import rx.android.schedulers.AndroidSchedulers;
 import rx.android.view.ViewObservable;
-import rx.functions.Action0;
 
 
 public class MainActivity extends ActionBarActivity {
@@ -57,6 +56,23 @@ public class MainActivity extends ActionBarActivity {
             button.setX(pos.first);
             button.setY(pos.second);
         });
+        // Schduler (with Async) without AndroidSchedulers(error!) & with AndroidSchedulers
+//        Observable.interval(1, TimeUnit.SECONDS, AndroidSchedulers.mainThread())
+//                .subscribe(s -> {
+//                    button.setText("Hello, " + s + "s");
+//                });
+
+        // Schduler (with Async) with Time + Location
+        Observable<Long> data = getAsyncData();
+        Observable.combineLatest(data, moves.map(m -> (int) button.getX() + ", " + (int) button.getY()), (a, b) -> a + " : " + b)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(s -> {
+                    button.setText("Hello, " + s + "");
+                });
+    }
+
+    private Observable<Long> getAsyncData() {
+        return Observable.interval(1, TimeUnit.SECONDS, AndroidSchedulers.mainThread());
     }
 
     @Override
