@@ -12,6 +12,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import rx.Observable;
+import rx.util.async.Async;
+
+import static rx.android.schedulers.AndroidSchedulers.mainThread;
+
 /**
  * Created by soohyun.baik on 2015-04-15.
  */
@@ -33,45 +38,14 @@ public class EventLocationAdapter extends ArrayAdapter<String> implements Filter
     }
 
     class MyFilter extends Filter {
-
         @Override
         protected FilterResults performFiltering(CharSequence constraint) {
-            if (constraint == null) return new FilterResults();
-            String filter = constraint.toString();
-
-
-            AsyncTask<Void, Void, List<String>> task = new AsyncTask<Void, Void, List<String>>() {
-                @Override
-                protected List<String> doInBackground(Void[] params) {
-                    return queryRecentLocations(filter);
-                }
-            }.execute();
-
-            List<String> contacts = queryContacts(filter);
-
-            List<String> values = new ArrayList<>();
-
-            try {
-                for (String recentLocation: task.get()) {
-                    if (!contacts.contains(recentLocation))
-                        values.add(recentLocation);
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            } catch (ExecutionException e) {
-                e.printStackTrace();
-            }
-            values.addAll(contacts);
-
-            FilterResults results = new FilterResults();
-            results.values = values;
-            results.count = values.size();
-            return results;
+            return new FilterResults();
         }
 
         private List<String> queryRecentLocations(String filter) {
             List<String> results = new ArrayList<>();
-            for (int i=1; i<7; i++) {
+            for (int i = 1; i < 7; i++) {
                 results.add(filter + Thread.currentThread().getName() + i);
             }
             return results;
@@ -79,8 +53,8 @@ public class EventLocationAdapter extends ArrayAdapter<String> implements Filter
 
         private List<String> queryContacts(String filter) {
             List<String> results = new ArrayList<>();
-            for (int i=5; i<10; i++) {
-                results.add(filter + i);
+            for (int i = 5; i < 10; i++) {
+                results.add(filter + Thread.currentThread().getName() + i);
             }
             return results;
         }
@@ -88,10 +62,26 @@ public class EventLocationAdapter extends ArrayAdapter<String> implements Filter
 
         @Override
         protected void publishResults(CharSequence constraint, FilterResults results) {
-            clear();
-            if (results.count > 0) {
-                addAll((java.util.Collection<? extends String>) results.values);
-            }
+            Observable<List<String>> recentLocationsAsync = Async.start(() -> queryRecentLocations(constraint.toString()));
+            Observable<List<String>> contactsAsync = Async.start(() -> queryContacts(constraint.toString()));
+
+            Observable.zip(recentLocationsAsync, contactsAsync, (recentLocations, contacts) -> {
+                List<String> values = new ArrayList<>();
+                for (String recentLocation : recentLocations) {
+                    if (!contacts.contains(recentLocation))
+                        values.add(recentLocation);
+                }
+                values.addAll(contacts);
+                return values;
+            }).observeOn(mainThread()).subscribe(
+                    values -> {
+                        clear();
+                        addAll(values);
+                    },
+                    error -> {
+                        clear();
+                    }
+            );
         }
     }
 }
